@@ -6,6 +6,7 @@ import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
+import { TableSkeleton } from './components/ui/table-skeleton';
 import {
   Form,
   FormControl,
@@ -36,15 +37,11 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 
-const formSchema = z
-  .object({
-    name: z.string().min(5).max(50),
-    username: z.string().min(5).max(20),
-    email: z.string().email(),
-  })
-  .partial();
-
-// const requiredColumn = formSchema.required();
+const formSchema = z.object({
+  name: z.string().min(5).max(50),
+  username: z.string().min(3).max(20),
+  email: z.string().email(),
+});
 
 export type UserData = {
   id: number;
@@ -54,9 +51,7 @@ export type UserData = {
 };
 
 const App: React.FC = () => {
-  // const [name, setName] = useState<string>('');
-  // const [username, setUsername] = useState<string>('');
-  // const [email, setEmail] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [tableData, setTableData] = useState<UserData[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -73,7 +68,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  });
+  }, []);
 
   const { toast } = useToast();
 
@@ -93,7 +88,7 @@ const App: React.FC = () => {
     }
   };
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+  const handleSubmitForm = async (values: z.infer<typeof formSchema>) => {
     const { name, username, email } = values;
 
     if (name && username && email) {
@@ -152,7 +147,7 @@ const App: React.FC = () => {
     form.setValue('email', '');
   };
 
-  const onUpdate = async (values: z.infer<typeof formSchema>) => {
+  const handleUpdate = async (values: z.infer<typeof formSchema>) => {
     const { name, username, email } = values;
 
     if (name && username && email && editingId !== null) {
@@ -175,11 +170,13 @@ const App: React.FC = () => {
           }
         );
 
+        console.log(response);
+
         const data: UserData = await response.json();
         const updatedUser = tableData.map((user) =>
           user.id === editingId ? data : user
         );
-        ``;
+
         setTableData(updatedUser);
 
         form.setValue('name', '');
@@ -187,7 +184,7 @@ const App: React.FC = () => {
         form.setValue('email', '');
 
         setEditingId(null);
-        
+
         toast({
           title: 'User Updated',
           description: `${data.name} is successfully updated!`,
@@ -205,14 +202,27 @@ const App: React.FC = () => {
 
   const handleDelete = async (id: number) => {
     try {
+      setIsLoading(true);
       await fetch(`https://jsonplaceholder.typicode.com/users/${id}`, {
         method: 'DELETE',
       });
 
       const deletedData = tableData.filter((data) => data.id !== id);
+
       setTableData(deletedData);
+
+      toast({
+        title: 'User Deleted',
+        description: `User is successfully deleted!`,
+      });
+
+      setIsLoading(false);
     } catch (error) {
-      console.log('Error menghapus user: ' + error);
+      toast({
+        variant: 'destructive',
+        title: 'Error!',
+        description: 'There was a problem with your request, please try again.',
+      });
     }
   };
 
@@ -221,13 +231,16 @@ const App: React.FC = () => {
   return (
     <>
       <div className="container py-4 mx-auto">
+     <h1 className="py-5 text-4xl font-extrabold tracking-tight scroll-m-20 lg:text-5xl">
+        User Management App
+      </h1>
         <div className="pb-5">
           <Form {...form}>
             <form
               onSubmit={
                 editingId == null
-                  ? form.handleSubmit(onSubmit)
-                  : form.handleSubmit(onUpdate)
+                  ? form.handleSubmit(handleSubmitForm)
+                  : form.handleSubmit(handleUpdate)
               }
               className="space-y-8"
             >
@@ -314,8 +327,9 @@ const App: React.FC = () => {
           </Form>
         </div>
 
+
         <Table>
-          <TableCaption>A list of recent users.</TableCaption>
+          <TableCaption>A list of users.</TableCaption>
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
@@ -325,50 +339,54 @@ const App: React.FC = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {tableData.map((data, index) => {
-              return (
-                <TableRow key={index}>
-                  <TableCell className="font-medium">{data.name}</TableCell>
-                  <TableCell>{data.username}</TableCell>
-                  <TableCell>{data.email}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-x-5">
-                      <div className="flex-initial">
-                        <Button onClick={() => handleEdit(data.id)}>
-                          Update
-                        </Button>
+            {formState.isSubmitting || isLoading ? (
+              <TableSkeleton />
+            ) : (
+              tableData.map((data, index) => {
+                return (
+                  <TableRow key={index}>
+                    <TableCell className="font-medium">{data.name}</TableCell>
+                    <TableCell>{data.username}</TableCell>
+                    <TableCell>{data.email}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-x-5">
+                        <div className="flex-initial">
+                          <Button onClick={() => handleEdit(data.id)}>
+                            Update
+                          </Button>
+                        </div>
+                        <div className="flex-initial">
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="destructive">Delete</Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>
+                                  Are you absolutely sure?
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This action cannot be undone. This will
+                                  permanently delete this data from our servers.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDelete(data.id)}
+                                >
+                                  Continue
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       </div>
-                      <div className="flex-initial">
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="destructive">Delete</Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>
-                                Are you absolutely sure?
-                              </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This action cannot be undone. This will
-                                permanently delete this data from our servers.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDelete(data.id)}
-                              >
-                                Continue
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
       </div>
