@@ -74,11 +74,15 @@ const App: React.FC = () => {
 
   const fetchData = async () => {
     try {
+      setIsLoading(true);
+
       const response = await fetch(
         'https://jsonplaceholder.typicode.com/users'
       );
       const data: UserData[] = await response.json();
       setTableData(data);
+      
+      setIsLoading(false);
     } catch (error) {
       toast({
         variant: 'destructive',
